@@ -1,0 +1,15 @@
+[submodule "buildroot"]
+	path = buildroot
+	url = https://github.com/LinuxMD/buildroot.git
+[submodule "linux"]
+	path = linux
+	url = git@github.com-bradgrantham:bradgrantham/linux.git
+[submodule "u-boot"]
+	path = u-boot
+	url = git@github.com-bradgrantham:bradgrantham/u-boot.git
+[submodule "smolutils"]
+	path = smolutils
+	url = https://github.com/LinuxMD/smolutils.git
+[submodule "tarwak"]
+	path = tarwak
+	url = https://github.com/LinuxMD/tarwak.git

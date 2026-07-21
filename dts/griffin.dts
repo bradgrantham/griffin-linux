@@ -1,0 +1,145 @@
+/dts-v1/;
+
+/*
+ * Griffin homebrew 68010 machine.
+ *
+ * Boots as a generic M68K DeviceTree machine (CONFIG_M68KDT + CONFIG_M68KDT_GRIFFIN).
+ * Addresses/IRQ levels mirror griffin.yml.
+ *
+ * NOT the runtime DTB: bootelf (arch/m68k/lib/elf.c, bootelf_exec) passes the
+ * kernel u-boot's OWN embedded devicetree (gd->fdt_blob) in register d7 --
+ * that is u-boot/arch/m68k/dts/griffin.dts, kept in sync with this file by
+ * hand.  This copy exists as the standalone dtc-compiles check from M2 and as
+ * a from-scratch reference; edit both when either changes.
+ *
+ * Interrupt controller is motorola,mc68010-intc-vect: #interrupt-cells = 1,
+ * but the cell is the irq_domain hwirq, NOT the raw autovector level.  The
+ * generic m68k intc (arch/m68k/68000/ints_generic.c, process_int_autovec)
+ * maps autovector level L to hwirq L-1 (fp->vector/4 - AUTOVECSTART(25), and
+ * exception vector 24+L is autovector level L).  Griffin levels: 3 ENGINE
+ * (video DMA) -> hwirq 2, 4 GLUE/PS2 -> hwirq 3, 5 DUART -> hwirq 4,
+ * 6 VIDEO vsync -> hwirq 5.
+ */
+
+/ {
+	model = "Griffin 68010";
+	compatible = "griffin,griffin";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	chosen {
+		/* console/root filled out as drivers land (M4/M7); earlycon is
+		 * the DUART.  ttyS0 is the DUART tty once bound in M5. */
+		bootargs = "earlycon console=ttyS0 root=/dev/sda2 rootfstype=erofs ro";
+		stdout-path = &duart;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "motorola,m68010";
+			reg = <0>;
+			clock-frequency = <14000000>;
+		};
+	};
+
+	/* 8 MB contiguous DRAM at 0 (8x AS6C8016).  Self-contained u-boot
+	 * abandons the ROM firmware after jumping here, so the kernel owns all
+	 * of RAM.  (If u-boot is later built to reuse ROM traps, shrink this to
+	 * reserve the top 512 KB the firmware keeps.) */
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x00800000>;
+	};
+
+	intc: interrupt-controller {
+		compatible = "motorola,mc68010-intc-vect";
+		interrupt-controller;
+		#interrupt-cells = <1>;
+	};
+
+	/* Reserved 64 KB-aligned framebuffer carveout for the fbdev driver (M9).
+	 * ENGINE's SOURCE_PAGE is only A[23:16], so the base must be 64 KB
+	 * aligned; the 84x480 ~= 40 KB buffer fits one 64 KB page.  Parked near
+	 * the top of RAM, below where the kernel image loads low. */
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		framebuffer_res: framebuffer@7f0000 {
+			reg = <0x007f0000 0x00010000>;
+			no-map;
+		};
+	};
+
+	/* XR68C681 DUART -- serial console + 100 Hz counter/timer tick.
+	 * Byte registers on odd addresses within 0xF80000.  Driver (M4/M5). */
+	duart: serial@f80000 {
+		compatible = "griffin,duart-xr68c681";
+		reg = <0x00f80000 0x00040000>;
+		interrupt-parent = <&intc>;
+		interrupts = <4>;	/* autovector level 5 -> hwirq 4 */
+		clock-frequency = <3686400>;
+	};
+
+	/* XR68C681 counter/timer clockevent (M6). Same physical registers as
+	 * "duart" above; kept as its own node since u-boot's DM timer driver
+	 * binds it independently of the tty/earlycon driver. */
+	duart_timer: timer@f80000 {
+		compatible = "griffin,duart-timer";
+		reg = <0x00f80000 0x00040000>;
+		interrupt-parent = <&intc>;
+		interrupts = <4>;	/* autovector level 5 -> hwirq 4, shared w/ DUART RX */
+		clock-frequency = <3686400>;
+	};
+
+	/* Video DMA engine (bus master, streams framebuffer to VIDEO FIFO). M9. */
+	engine: dma@d00000 {
+		compatible = "griffin,video-engine";
+		reg = <0x00d00000 0x00100000>;
+		interrupt-parent = <&intc>;
+		interrupts = <2>;	/* autovector level 3 -> hwirq 2 */
+		status = "disabled";
+	};
+
+	/* VGA 640x480@60 1bpp generator; vsync IRQ.  Paired with ENGINE. M9. */
+	/* status "okay": the vsync IRQ has no mask (CLRINT only acks; see
+	 * CLRINT/CTRL.IRQENB in griffin.yml), so the vsync-ack stub must
+	 * always bind once interrupts are enabled, even before M9's real
+	 * fbdev driver exists.  griffin_video.c currently only acks. */
+	video: video@e00000 {
+		compatible = "griffin,video";
+		reg = <0x00e00000 0x00100000>;
+		interrupt-parent = <&intc>;
+		interrupts = <5>;	/* autovector level 6 -> hwirq 5 */
+		memory-region = <&framebuffer_res>;
+		status = "okay";
+	};
+
+	/* GLUE: system glue + PS/2 keyboard frame engine (one IRQ per byte). */
+	glue: glue@f00000 {
+		compatible = "griffin,glue";
+		reg = <0x00f00000 0x00040000>;
+		interrupt-parent = <&intc>;
+		interrupts = <3>;	/* autovector level 4 -> hwirq 3 */
+		status = "disabled";
+	};
+
+	/* CompactFlash in True IDE 8-bit PIO mode (polled). M7. */
+	cf: ide@f40000 {
+		compatible = "griffin,cf-ide";
+		reg = <0x00f40000 0x00040000>;
+		status = "disabled";
+	};
+
+	/* 8-bit R2R DAC audio latch. */
+	audio: audio@fc0000 {
+		compatible = "griffin,audio-dac";
+		reg = <0x00fc0000 0x00040000>;
+		status = "disabled";
+	};
+};
