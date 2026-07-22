@@ -318,6 +318,53 @@ probes cleanly -> reaches the **expected** M6/M7 boundary:
 `Kernel panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)`
 (no CF kernel driver / root fs yet -- that's M7).
 
+## M7 outcome (CF block driver + erofs root mount; kernel reaches the M8 boundary)
+
+**Deliverable:** `drivers/block/griffin_cf.c` (`CONFIG_GRIFFIN_CF`, DT
+`griffin,cf-ide`, no IRQ -- fully polled) -- a THIRD independent port of the
+same 8-bit True IDE PIO protocol (firmware, u-boot, now kernel), using the
+modern `blk_mq` API (`blk_mq_alloc_sq_tag_set` + `blk_mq_alloc_disk` +
+`.queue_rq`, `BLK_MQ_F_BLOCKING` since I/O is synchronous polling with no IRQ).
+Structural template: LinuxMD's `everdrive_blk.c` (already in-tree, gated off
+for Griffin since M2). Read AND write supported (cheap to add, keeps the
+driver usable for a future writable data partition per the design doc), disk
+named `cf` (not `sda` -- this isn't a SCSI/SATA-shaped disk, matching how e.g.
+eMMC uses `mmcblk0` rather than pretending to be `sda`).
+
+One real bug (`struct gendisk` has no `queuedata` member -- that's a
+`request_queue` field; `blk_mq_alloc_disk()`'s third arg already becomes
+`queue->queuedata`, confirmed from the header, no need to set it again) and
+two environment-only speed bumps (both **not kernel bugs**, worth remembering
+for the emulator harness):
+
+- **CF now needs a real partition table.** M1-M6 tested against a raw/
+  superfloppy FAT16 image (no MBR) so u-boot's `fatload ide 0:0 ...` ("device
+  0, whole disk") found the boot files directly. Root needs its own partition,
+  so `cf.img` is now `sfdisk`-partitioned: MBR, partition 1 = FAT16 boot
+  (`u-boot.bin`, `vmlinux`) at sector 2048 (24 MiB), partition 2 = erofs root
+  at sector 51200 (15 MiB). Once a real MBR exists, `0:0` no longer resolves
+  (sector 0 is now the MBR, not a FAT boot sector) -- u-boot's `bootcmd` had
+  to move to `0:1` (`include/configs/griffin.h`).
+  Build recipe: `sfdisk cf.img < layout` (dos label, `type=e`/`type=83`),
+  `mkfs.fat -F16 --offset=2048 cf.img 24576` (block count is 1024-byte units,
+  so KiB not sectors), `mcopy -i "cf.img@@1M" file ::` (mtools' `@@offset`
+  addressing for partitioned images), `dd ... seek=51200 conv=notrunc` to drop
+  a `mkfs.erofs`-built image at partition 2's byte offset.
+- **`root=/dev/sda2` was a copy-paste default from M2** that never mattered
+  until a real block device existed. Fixed to `root=/dev/cf2` in both
+  `griffin.dts` copies, matching the driver's actual disk name.
+
+### Result
+
+Full boot: earlycon -> BogoMIPS -> `cf: cf1 cf2` (partition scan) ->
+`griffin-cf f40000.ide: 81920 sectors (40 MiB)` ->
+`erofs (device cf2): mounted with root inode @ nid 36` ->
+`VFS: Mounted root (erofs filesystem) readonly on device 259:2` ->
+`VFS: Pivoted into new rootfs` -> tries `/sbin/init`, `/etc/init`, `/bin/init`,
+`/bin/sh` in turn -> **expected** M7/M8 boundary:
+`Kernel panic - not syncing: No working init found.` (root image is currently
+just a placeholder `README`; M8 puts real userspace there.)
+
 ## Base configs to crib from
 
 - `arch/m68k/configs/megadrive_defconfig` — closest working M68KDT nommu config.

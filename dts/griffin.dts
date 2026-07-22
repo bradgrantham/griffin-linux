@@ -30,7 +30,7 @@
 	chosen {
 		/* console/root filled out as drivers land (M4/M7); earlycon is
 		 * the DUART.  ttyS0 is the DUART tty once bound in M5. */
-		bootargs = "earlycon console=ttyS0 root=/dev/sda2 rootfstype=erofs ro";
+		bootargs = "earlycon console=ttyS0 root=/dev/cf2 rootfstype=erofs ro";
 		stdout-path = &duart;
 	};
 
@@ -133,7 +133,7 @@
 	cf: ide@f40000 {
 		compatible = "griffin,cf-ide";
 		reg = <0x00f40000 0x00040000>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	/* 8-bit R2R DAC audio latch. */

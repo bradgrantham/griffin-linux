@@ -19,7 +19,7 @@ is described by `linux/arch/m68k/boot/dts/griffin.dts` and drivers bind by
 | `smolutils/`  | submodule — minimal userspace (erofs rootfs); busybox evaluated first |
 | `tarwak/`     | submodule — smolutils build helper                            |
 
-## Build (clone one repo, run four stages)
+## Build (clone one repo, run the stages)
 
 ```sh
 git submodule update --init --recursive
@@ -27,9 +27,14 @@ make toolchain   # buildroot -> buildroot/output/host/bin/m68k-linux-*
 make uboot       # -> u-boot/u-boot.bin
 make linux       # -> linux/vmlinux, vmlinux.lz4, griffin.dtb
 make rootfs      # -> smolutils/m68k.erofs
+make cfimage     # -> cf.img (bootable: FAT boot partition + erofs root)
 # or: make all
 make config      # menuconfig -> arch/m68k/configs/griffin_defconfig
 ```
+
+`cfimage` defaults to a placeholder root (just enough to prove the kernel
+mounts it) if `rootfs` hasn't been built yet; pass `ROOTFS_IMAGE=path` to
+`buildcfimage.sh` to embed a real one.
 
 Buildroot builds **only** the toolchain; kernel/u-boot/rootfs use dedicated
 scripts against the forked trees with `CROSS_COMPILE` pointing at the buildroot

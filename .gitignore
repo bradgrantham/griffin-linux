@@ -5,3 +5,7 @@
 # the emulator; not source).
 /griffin.dtb
 /audio.raw
+/cf.img
+
+# Claude Code session-local state, not project source.
+/.claude/
