@@ -1,0 +1,24 @@
+# Buildroot defconfig for the Griffin USERSPACE toolchain:
+# m68k-uclinux / uClibc-ng / binfmt_flat (elf2flt wrapped into the linker).
+#
+# This is a second toolchain, separate from linuxmdtc_defconfig's musl one
+# (buildroot/output/, used for the kernel and u-boot).  musl cannot produce
+# working flat userspace -- it has never supported nommu and its crt assumes
+# the ELF stack layout, not binfmt_flat's (see README "Building userspace
+# binaries").  uClibc-ng is the classic uClinux userspace libc with a
+# flat-aware crt.  Requires the BR2_m68k_68000 CPU variant added to
+# arch/Config.in.m68k on the buildroot 'griffin' branch (stock buildroot only
+# offers MMU-selecting 68030/68040 and ColdFire, making BR2_BINFMT_FLAT
+# unreachable for classic m68k).
+#
+# Build (out-of-tree, keeps the musl toolchain's output/ intact):
+#   make -C buildroot O=$PWD/build/buildroot-userspace \
+#        BR2_DEFCONFIG=$PWD/configs/griffin_userspace_br_defconfig defconfig
+#   make -C buildroot O=$PWD/build/buildroot-userspace toolchain
+# Result: build/buildroot-userspace/host/bin/m68k-buildroot-uclinux-uclibc-*
+BR2_m68k=y
+BR2_m68k_68000=y
+BR2_BINFMT_FLAT=y
+BR2_TOOLCHAIN_BUILDROOT_UCLIBC=y
+BR2_BINUTILS_VERSION_2_46_X=y
+BR2_GCC_VERSION_15_X=y

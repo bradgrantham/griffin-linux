@@ -41,6 +41,43 @@ scripts against the forked trees with `CROSS_COMPILE` pointing at the buildroot
 output. Host prereqs: `build-essential git wget cpio unzip rsync bc
 libncurses-dev file python3 lz4 erofs-utils` (+ `meson`/`ninja` for tarwak).
 
+## Building userspace binaries
+
+Griffin is nommu, so userspace is **bFLT (binfmt_flat)** — no demand paging, no
+fork (vfork only), every exec loads the whole binary into RAM. The kernel has
+`CONFIG_BINFMT_FLAT=y`; `CONFIG_BINFMT_ELF_FDPIC` is enabled but useless here
+(this gcc has no FDPIC support at all).
+
+Producing a bFLT binary with the buildroot toolchain:
+
+```sh
+# one-time: build the elf2flt linker wrapper into the toolchain
+( cd buildroot && make host-elf2flt )
+
+# then: -Wl,-elf2flt makes the (wrapped) linker emit bFLT;
+# FLTFLAGS sets the flat-header stack size (default 4 KB is far too small)
+FLTFLAGS="-s 16384" \
+  buildroot/output/host/bin/m68k-linux-gcc -m68000 -Os -static \
+  -Wl,-elf2flt -o prog prog.c
+buildroot/output/host/bin/m68k-buildroot-linux-musl-flthdr -p prog  # inspect
+```
+
+**Critical caveat: the toolchain's musl libc does not work for flat userspace.**
+musl has never supported nommu — its crt expects the ELF stack layout at entry,
+but binfmt_flat (`ARGVP_ENVP_ON_STACK`) passes argc/argv-pointer/envp-pointer
+instead, so a musl-linked init reads garbage pointers and faults before its
+first instruction of `main()` (and a faulting init is unkillable, so the
+machine "hangs" in a silent SIGSEGV storm). This is exactly why LinuxMD's
+smolutils links against the **kernel's nolibc** (`linux/tools/include/nolibc`)
+rather than the musl in the very same toolchain. Working options for Griffin
+userspace: nolibc (smolutils path, proven on this kernel), or a second
+buildroot toolchain built with `BR2_BINFMT_FLAT` + uClibc-ng (the classic
+uClinux userspace libc, flat-aware crt) for busybox-class programs.
+
+The rootfs skeleton must contain `/dev` (devtmpfs mount point — without it the
+kernel logs `devtmpfs: error mounting -2` and userspace has no console node),
+plus `/proc`, `/sys`, and the init at `/sbin/init`.
+
 ## Bring-up on the emulator
 
 The full plan lives in the approved plan file; milestones M1–M9 each have an

@@ -1,0 +1,78 @@
+# Griffin busybox config fragment (applied over allnoconfig via KCONFIG_ALLCONFIG).
+#
+# Minimal interactive userspace for the 8 MB nommu machine: ash + init + a
+# small coreutils set, statically linked against musl, emitted as bFLT via
+# the elf2flt-wrapped linker (-Wl,-elf2flt; stack size set with FLTFLAGS at
+# link time, see buildrootfs.sh).  Every applet exec on nommu loads the whole
+# binary fresh into RAM (no demand paging / text sharing), so the applet list
+# is kept deliberately small to keep the binary -- and therefore every
+# concurrent process image -- small.  Add applets as need arises.
+
+CONFIG_NOMMU=y
+CONFIG_STATIC=y
+CONFIG_BUSYBOX=y
+CONFIG_SHOW_USAGE=y
+CONFIG_LFS=y
+
+# NOFORK applets run inside the shell process itself -- on nommu this avoids
+# a full binary reload per command for the common tiny utilities.
+CONFIG_FEATURE_PREFER_APPLETS=y
+CONFIG_FEATURE_SH_NOFORK=y
+CONFIG_FEATURE_SH_STANDALONE=y
+
+# hush, not ash: busybox refuses ash on nommu outright ('#error "Do not even
+# bother, ash will not run on NOMMU machine"' -- ash needs real fork).  hush
+# is the nommu shell: subshells/pipelines re-exec busybox via /proc/self/exe,
+# so /proc must be mounted early (rcS does).
+CONFIG_HUSH=y
+CONFIG_SH_IS_HUSH=y
+CONFIG_HUSH_INTERACTIVE=y
+CONFIG_HUSH_IF=y
+CONFIG_HUSH_LOOPS=y
+CONFIG_HUSH_CASE=y
+CONFIG_HUSH_TICK=y
+CONFIG_HUSH_EXPORT=y
+CONFIG_HUSH_READ=y
+CONFIG_HUSH_SET=y
+CONFIG_HUSH_UNSET=y
+CONFIG_HUSH_TRAP=y
+CONFIG_HUSH_ECHO=y
+CONFIG_HUSH_TEST=y
+CONFIG_FEATURE_EDITING=y
+CONFIG_FEATURE_EDITING_MAX_LEN=256
+CONFIG_FEATURE_TAB_COMPLETION=y
+
+CONFIG_INIT=y
+CONFIG_FEATURE_USE_INITTAB=y
+
+CONFIG_CAT=y
+CONFIG_CP=y
+CONFIG_DATE=y
+CONFIG_DF=y
+CONFIG_DMESG=y
+CONFIG_ECHO=y
+CONFIG_FREE=y
+CONFIG_GREP=y
+CONFIG_HEAD=y
+CONFIG_HEXDUMP=y
+CONFIG_LN=y
+CONFIG_LS=y
+CONFIG_MKDIR=y
+CONFIG_MOUNT=y
+CONFIG_MV=y
+CONFIG_PS=y
+CONFIG_PWD=y
+CONFIG_REBOOT=y
+CONFIG_HALT=y
+CONFIG_POWEROFF=y
+CONFIG_RM=y
+CONFIG_RMDIR=y
+CONFIG_SLEEP=y
+CONFIG_SYNC=y
+CONFIG_TAIL=y
+CONFIG_TOUCH=y
+CONFIG_TRUE=y
+CONFIG_FALSE=y
+CONFIG_UMOUNT=y
+CONFIG_UNAME=y
+CONFIG_WC=y

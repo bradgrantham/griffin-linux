@@ -6,6 +6,11 @@
 /griffin.dtb
 /audio.raw
 /cf.img
+/rootfs.erofs
 
 # Claude Code session-local state, not project source.
 /.claude/
+
+# Third-party build trees (extracted from dl/ tarballs; not source).
+/build/
+/dl/

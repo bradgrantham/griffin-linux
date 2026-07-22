@@ -365,6 +365,48 @@ Full boot: earlycon -> BogoMIPS -> `cf: cf1 cf2` (partition scan) ->
 `Kernel panic - not syncing: No working init found.` (root image is currently
 just a placeholder `README`; M8 puts real userspace there.)
 
+## M8 outcome (busybox init + interactive hush shell on the DUART)
+
+Working session: init -> rcS ("Griffin: userspace up.", mounts /proc + /sys)
+-> interactive hush on ttyS0 -> uname/ls/ps/pipelines all execute.  First
+real exercise of the DUART driver's interrupt RX path, which worked as built.
+Four lessons, each of which cost a debugging round:
+
+1. **musl cannot produce flat userspace** (detailed in README): its crt
+   assumes the ELF stack layout; binfmt_flat passes argc/argvp/envpp instead.
+   A musl-linked init faults before main(), and a faulting init is unkillable
+   -> the machine "hangs" in a silent SIGSEGV storm (diagnosed by sampling
+   PC: always inside prepare_signal/__send_signal_locked).  Userspace uses a
+   second buildroot toolchain: m68k-buildroot-uclinux-uclibc (uClibc-ng has
+   the flat-aware crt).  Required adding a BR2_m68k_68000 CPU variant to
+   buildroot (stock only has MMU-forcing 68030/68040 + ColdFire, making
+   BR2_BINFMT_FLAT unreachable).  The uclinux toolchain emits bFLT by
+   default; FLTFLAGS="-r -s 65536" sets load-to-RAM + stack size.
+2. **ash does not exist on nommu** -- busybox hard-errors ('#error "Do not
+   even bother, ash will not run on NOMMU machine"').  hush is the nommu
+   shell; its subshells/pipelines re-exec busybox via /proc/self/exe, so
+   /proc must be mounted early (rcS does it first).
+3. **busybox's ancient kconfig ignores KCONFIG_ALLCONFIG values under
+   allnoconfig** -- it loads them as *defaults*, then answers "n" to every
+   question anyway; only `choice` selections (SH_IS_HUSH) survive.  This
+   produced a shell-only busybox that looked half-working (hush ran, no
+   applets) before the root cause was found via `conf`'s verbose transcript
+   (`SHOW_USAGE [Y/n/?] n` -- fragment default visible, overridden).
+   buildrootfs.sh now merges the fragment textually into .config and runs
+   `yes "" | make oldconfig`, then asserts key symbols survived.
+4. **CONFIG_BINFMT_SCRIPT=y is required** for `#!` scripts (rcS).  The
+   megadrive defconfig this grew from leaves it off (smolutils execs no
+   scripts); without it execve fails ENOEXEC and busybox init retries the
+   path as an applet name ("rcS: applet not found"), leaving /proc unmounted
+   -- which also breaks hush pipelines (lesson 2).
+
+Rootfs: buildrootfs.sh (busybox flavor default; ROOTFS_FLAVOR=smolutils
+keeps the LinuxMD fallback) -> 280 KB busybox, all applet links via
+`make install CONFIG_PREFIX=skel`, inittab (sysinit rcS + askfirst sh),
+erofs ~280 KB.  Follow-up agreed with the user: ext2 rw root option
+(mke2fs -d, unprivileged) once M8/M9 settle; kernel CF driver already
+does writes.
+
 ## Base configs to crib from
 
 - `arch/m68k/configs/megadrive_defconfig` — closest working M68KDT nommu config.
