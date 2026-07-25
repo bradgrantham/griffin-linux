@@ -407,6 +407,55 @@ erofs ~280 KB.  Follow-up agreed with the user: ext2 rw root option
 (mke2fs -d, unprivileged) once M8/M9 settle; kernel CF driver already
 does writes.
 
+## M9 — fbdev console, and the DMA-stall boot wedge
+
+The fbdev driver (`drivers/video/fbdev/griffin_video.c`) came up quickly:
+640x480x1 `FB_VISUAL_MONO10`, 84-byte stride, `screen_base = fb + 4` for the
+in-band palette header, reserved-memory carveout at 0x7f0000, vsync-ack IRQ
+handler, ENGINE->VIDEO enable order on probe. One real kernel bug found and
+fixed along the way: **reserved-memory was cataloged but never reserved** —
+`setup_arch()` on M68KDT didn't call `early_init_fdt_scan_reserved_mem()`, so
+`mem_map` landed in the framebuffer carveout and got shredded once DMA
+streamed it to the screen. Added that call in `arch/m68k/kernel/setup_dt.c`
+(generic fix for all M68KDT boards).
+
+The hard part was a boot **wedge**: with the fbdev driver enabling ENGINE DMA,
+boot intermittently hung right after `random: crng init done`,
+nondeterministically. Debugging chain and conclusions:
+
+- **Not frozen ticks.** A `GRIFFIN_DUMP_ON_EXIT` CPU dump caught the wedged CPU
+  mid-`__schedule` *inside a normal 100 Hz timer tick* (`griffin_duart_isr ->
+  tick_periodic -> sched_tick -> task_tick_fair`, `SR` IPL mask = 5). Ticks are
+  firing.
+- **Not TX starvation** (emulator DUART TXRDY is always ready) and **not
+  fbcon rendering** (wedges with `console=ttyS0` only, no fbcon).
+- **Not livelock.** The fp backtrace (depth raised to 40 to reach through the
+  IRQ frame) showed the interrupted context was a kernel thread parked in
+  `kthread()`'s *initial* `schedule()` — i.e. a freshly-created kthread waiting
+  for its first `wake_up_process()`, never run. Matches the earlier symptom of
+  `maybe_create_worker -> wait_for_completion_killable` hanging: the CPU idles
+  (taking ticks) while a wakeup is stuck.
+- **Cause = the emulator's coarse DMA-stall model.** `service_video()` charged
+  the whole per-scanline burst as one `sync(SYSCLKS_PER_LINE)` lump in the gap
+  between two whole instructions — fast-forwarding the shared clock ~a dozen
+  instructions' worth in a single interrupt-blind gap, at the video-scanline
+  cadence. That video-phased clock discontinuity mis-times the scheduler wakeup
+  on the nommu/UP kernel.
+- **Proven it's the discontinuity, not the slowdown.** Distributing the
+  *identical total* stall across instructions (a few cycles per CPU step) boots
+  cleanly to a busybox shell; the lump wedges. So it is the per-lump *magnitude*
+  (threshold sat between the 93-cycle cost after the 2-cyc/word ENGINE change
+  and the earlier 141-cycle cost), not the CPU-vs-jiffies slowdown, which is
+  identical either way.
+
+Fix: the emulator now delivers the stall **smoothly** by default (debt paid
+down `GRIFFIN_DMA_STALL_STEP` cycles/step), which is also what real hardware
+does — ENGINE steals the bus at bus-cycle granularity via BR/BG/DTACK, never in
+one interrupt-blind lump. The old lump is kept behind `GRIFFIN_DMA_STALL_LUMP`
+for A/B and intra-line tearing studies. **No Griffin hardware or kernel change
+was needed** — the wedge was purely a modeling artifact with no hardware
+analog. fbcon now boots to a shell with DMA live the whole time.
+
 ## Base configs to crib from
 
 - `arch/m68k/configs/megadrive_defconfig` — closest working M68KDT nommu config.

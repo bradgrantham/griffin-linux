@@ -77,13 +77,20 @@ build_busybox_rootfs() {
 
 	cat > "$SKEL/etc/inittab" <<'EOF'
 ::sysinit:/etc/init.d/rcS
-::askfirst:-/bin/sh
+# Serial console (DUART channel A) -- the interactive shell.
+ttyS0::askfirst:-/bin/sh
+# Framebuffer console (tty1, rendered by fbcon on the 640x480 display) -- a
+# second shell.  Input awaits a keyboard driver (PS/2, tracked), but the
+# prompt renders on the display, exercising the fbdev console end to end.
+tty1::askfirst:-/bin/sh
 ::restart:/sbin/init
 EOF
 	cat > "$SKEL/etc/init.d/rcS" <<'EOF'
 #!/bin/sh
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
+echo "Griffin: userspace up." > /dev/tty1
+echo "Griffin Linux -- framebuffer console (input pending PS/2 keyboard)." > /dev/tty1
 echo "Griffin: userspace up."
 EOF
 	chmod 755 "$SKEL/etc/init.d/rcS"

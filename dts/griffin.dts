@@ -30,7 +30,7 @@
 	chosen {
 		/* console/root filled out as drivers land (M4/M7); earlycon is
 		 * the DUART.  ttyS0 is the DUART tty once bound in M5. */
-		bootargs = "earlycon console=ttyS0 root=/dev/cf2 rootfstype=erofs ro";
+		bootargs = "earlycon console=tty0 console=ttyS0 root=/dev/cf2 rootfstype=erofs ro";
 		stdout-path = &duart;
 	};
 
@@ -113,7 +113,8 @@
 	 * fbdev driver exists.  griffin_video.c currently only acks. */
 	video: video@e00000 {
 		compatible = "griffin,video";
-		reg = <0x00e00000 0x00100000>;
+		reg = <0x00e00000 0x00100000>,
+		      <0x00d00000 0x00100000>;	/* reg 1 = ENGINE (one pipeline) */
 		interrupt-parent = <&intc>;
 		interrupts = <5>;	/* autovector level 6 -> hwirq 5 */
 		memory-region = <&framebuffer_res>;
