@@ -28,8 +28,9 @@
 	#size-cells = <1>;
 
 	chosen {
-		/* console/root filled out as drivers land (M4/M7); earlycon is
-		 * the DUART.  ttyS0 is the DUART tty once bound in M5. */
+		/* earlycon = DUART via stdout-path; the framebuffer boot
+		 * console self-registers from a console_initcall (earlycon
+		 * supports only one early console). */
 		bootargs = "earlycon console=tty0 console=ttyS0 root=/dev/cf2 rootfstype=erofs ro";
 		stdout-path = &duart;
 	};

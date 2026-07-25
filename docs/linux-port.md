@@ -193,6 +193,16 @@ reference, not a shared library).
   repeated-BAT recovery for a never-configured keyboard. `BOOTDELAY=2`
   (the default) gives an autoboot-abort window; `stdin=serial,kbd`,
   `stdout/stderr=serial,vidconsole` via `CONSOLE_MUX`.
+- **Kernel early framebuffer console:** a CON_BOOT console in
+  `griffin_video.c` (registered from a `console_initcall`, micro-textport
+  rendering with the built-in VGA8x16 font) puts the kernel log on the
+  display from early init — closing the dark window between u-boot's last
+  frame and fbcon.  CON_PRINTBUFFER replays everything printed before
+  registration; the fbdev probe silences it when fbcon takes the buffer.
+  Notes: the earlycon framework holds only ONE early console (the DUART has
+  it; a second `earlycon=` gets -EALREADY), and with `console=` entries on
+  the cmdline an unmatched extra console must be pre-enabled (CON_ENABLED —
+  the netconsole pattern) or `register_console` ignores it.
 - **Kernel keyboard** (`linux/drivers/input/serio/griffin_ps2.c`,
   `CONFIG_SERIO_GRIFFIN` + atkbd): minimal serio port — ISR reads the byte,
   flags frame/parity errors, `serio_interrupt()`, then W1C-acks (the same
