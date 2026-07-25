@@ -456,6 +456,49 @@ for A/B and intra-line tearing studies. **No Griffin hardware or kernel change
 was needed** — the wedge was purely a modeling artifact with no hardware
 analog. fbcon now boots to a shell with DMA live the whole time.
 
+## Issue #4 — standalone boot (u-boot video/kbd, kernel PS/2): findings
+
+- **u-boot relocation already overlapped the fb carveout.** With 8 MB and no
+  ram-top cap, relocated u-boot's bss ran to ~0x7ff088 — inside
+  0x7f0000-0x7fffff. Harmless while nothing used the carveout during u-boot's
+  lifetime; fatal once u-boot renders there. `board_get_usable_ram_top()` →
+  0x7f0000.
+- **u-boot generic vidconsole is 8/16/32bpp only** (`check_bpix_support`);
+  `VNBYTES(VIDEO_BPP1)=0` silently no-ops its drawing math. Custom
+  `vidconsole_ops` driver is the supported escape hatch — the uclass keeps
+  all cursor/newline/scroll bookkeeping.
+- **This fork's `fonts[]` has the 8x8 font first, unconditionally**
+  (`include/video_font.h` — the `#if CONFIG_VIDEO_FONT_8X8` guard is
+  commented out). `console_probe()` takes `fonts[0]`, so text rendered
+  squeezed/overstruck at 8-pixel row pitch until the driver re-selected
+  "8x16" via `console_simple_select_font()`.
+- **`CONFIG_VIDEO_ANSI` off makes `\e[2K` print literally** on the display
+  (autoboot countdown spam). On.
+- **`video_clear()` wipes the in-band palette headers** (memsets the whole
+  fb, headers included) — the `video_sync` op restamps them behind a
+  line-0-fg sentinel. Without the restamp the screen renders black-on-black.
+- **LTO + basic asm gotcha:** `__asm__ volatile("ori.w #0x0700,%%sr")` with
+  *no operand lists* is basic asm — `%%` is not collapsed, and the assembler
+  error surfaces only at the LTO link ("bad expression ... invalid operands
+  for `%`"). Add `::: "cc"` (extended asm) or use single `%`.
+- **u-boot really does run at SR=0x2700 throughout** — confirmed empirically
+  with a mid-autoboot-countdown `GRIFFIN_DUMP_ON_EXIT` dump, settling the
+  IPL-0 question from planning. The ROM's still-installed vector table never
+  executes under u-boot; PS/2 bytes simply latch until polled.
+- **Autoboot countdown runs ~2.5-3.5 s after power-on** (emulated) — much
+  earlier than the naive log-based estimate, because u-boot's own "bytes read
+  in 13 ms" timing is wrong (the polled CF fatload of a 1.7 MB kernel
+  actually spans ~10 emulated seconds). Two "keyboard doesn't interrupt
+  autoboot" false alarms were both injection-timing errors; the driver was
+  fine (proved by forcing a prompt via a vmlinux-less CF image and typing
+  `version` by keyboard).
+- **Kernel side was drama-free:** altera_ps2-shaped serio port + atkbd, with
+  the vsync-style W1C ack discipline. atkbd accepts the port with a real
+  `->write`; the emulator's new PS/2 device-command responses (0xFF→FA+AA,
+  0xF2→FA AB 83, 0xED/0xF3/0xF4→FA) let the full GETID probe run headless.
+  Mid-session `raw AA` (the repeated-BAT case Brad has seen on real
+  hardware) recovers via atkbd reconnect; typing continues.
+
 ## Base configs to crib from
 
 - `arch/m68k/configs/megadrive_defconfig` — closest working M68KDT nommu config.

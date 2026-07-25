@@ -154,7 +154,58 @@ independent of the delivery model.
 | M7 | CF block + erofs root mount | done |
 | M8 | userspace init + shell | done (busybox/hush on uClibc-ng bFLT) |
 | M9 | fbdev console | done (fbcon boots to shell with DMA live; see DMA-stall note and [the boot screenshot](m9-fbcon-boot.png)) |
-| — | u-boot fbcon + PS/2 (standalone boot) | deferred, tracked |
+| — | u-boot fbcon + PS/2 (standalone boot) | done (issue #4; see "Standalone boot" below) |
+
+## Standalone boot (issue #4): video console + PS/2 at every stage
+
+The machine is usable with no serial cable, power-on through a shell on the
+display. The ROM monitor was already standalone (textport + PS/2 input mux in
+`firmware/syscalls.c`); this work added the u-boot and kernel-input stages.
+All three stages stay **self-contained** (the issue's "should firmware be
+factored?" resolved as *no* — the firmware textport/ps2 code is the porting
+reference, not a shared library).
+
+- **u-boot video console** (`u-boot/drivers/video/griffin_video.c`,
+  `CONFIG_VIDEO_GRIFFIN`): u-boot's generic console renderer rejects 1bpp, so
+  this is a custom `vidconsole_ops` driver (byte-per-glyph-row 8x16, one
+  contiguous memmove per scroll, header-skipping row clear) on a
+  `UCLASS_VIDEO` driver that owns the fixed 0x7f0000 carveout (`plat->base`
+  set at **bind** time skips uclass fb allocation) with `line_length = 84`.
+  The uclass's `video_clear()` wipes the in-band palette headers; the
+  `video_sync` op restamps them behind a sentinel check. Two fork quirks:
+  `fonts[0]` is unconditionally the 8x8 font (the driver re-selects "8x16" at
+  probe), and `CONFIG_VIDEO_ANSI` is required or `\e[2K` prints literally.
+- **ram_top fix (pre-existing bug):** relocated u-boot's bss ran to ~0x7ff088,
+  *inside* the framebuffer carveout. `board_get_usable_ram_top()` now caps
+  usable RAM at 0x7f0000.
+- **Live handoff:** u-boot no longer disables ENGINE/VIDEO before bootelf
+  (the old `last_stage_init` disable predates the fixed carveout); the last
+  u-boot screen persists until the kernel's fbdev quiesces-then-reinits at
+  probe. u-boot never sets VIDEO IRQENB, so the free-running vsync latch
+  stays gated. (u-boot confirmed at SR=0x2700 throughout — checked with a
+  mid-countdown CPU dump — so the ROM's still-installed ISRs never run.)
+- **u-boot keyboard** (`u-boot/drivers/input/griffin_kbd.c`,
+  `CONFIG_GRIFFIN_KEYBOARD`): polled `UCLASS_KEYBOARD` driver on the GLUE
+  PS/2 frame engine (`griffin,glue`, now status "okay"), feeding u-boot's
+  set-1-indexed input tables through a set2→set1 map. Host TX (CTRL
+  CLK-inhibit >= 100 us, parity in TX_DATA address bit 1) sends 0xF4 at
+  start and re-sends it whenever the keyboard announces BAT (0xAA) — the
+  repeated-BAT recovery for a never-configured keyboard. `BOOTDELAY=2`
+  (the default) gives an autoboot-abort window; `stdin=serial,kbd`,
+  `stdout/stderr=serial,vidconsole` via `CONSOLE_MUX`.
+- **Kernel keyboard** (`linux/drivers/input/serio/griffin_ps2.c`,
+  `CONFIG_SERIO_GRIFFIN` + atkbd): minimal serio port — ISR reads the byte,
+  flags frame/parity errors, `serio_interrupt()`, then W1C-acks (the same
+  no-self-mask latch discipline as the vsync). `serio->write` is real
+  (firmware ps2.cpp TX recipe), so atkbd runs its full GETID probe and
+  handles a mid-session BAT via reconnect. The tty1 fbcon shell is now
+  interactive.
+- **Emulator test surface:** `--ps2-in FILE` injects scripted keystrokes
+  (`delay MS` / `text STRING` / `raw HH..`), and the PS/2 device model
+  answers host commands (0xFF→FA+BAT, 0xF2→FA AB 83, LEDs/typematic/enable)
+  so full keyboard init works unattended. Verified end-to-end: ROM monitor
+  driven by keyboard, u-boot autoboot aborted + `version` typed standalone,
+  kernel `uname -a` typed into the fbcon shell, and stray-BAT recovery.
 
 ## Tracked follow-ups (post-M9)
 

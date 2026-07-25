@@ -121,13 +121,15 @@
 		status = "okay";
 	};
 
-	/* GLUE: system glue + PS/2 keyboard frame engine (one IRQ per byte). */
+	/* GLUE: system glue + PS/2 keyboard frame engine (one IRQ per byte).
+	 * u-boot binds this as a polled DM keyboard; Linux binds it as a
+	 * serio port feeding atkbd. */
 	glue: glue@f00000 {
 		compatible = "griffin,glue";
 		reg = <0x00f00000 0x00040000>;
 		interrupt-parent = <&intc>;
 		interrupts = <3>;	/* autovector level 4 -> hwirq 3 */
-		status = "disabled";
+		status = "okay";
 	};
 
 	/* CompactFlash in True IDE 8-bit PIO mode (polled). M7. */
