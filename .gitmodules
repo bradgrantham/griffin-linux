@@ -1,12 +1,12 @@
 [submodule "buildroot"]
 	path = buildroot
-	url = https://github.com/LinuxMD/buildroot.git
+	url = https://github.com/bradgrantham/buildroot.git
 [submodule "linux"]
 	path = linux
-	url = git@github.com-bradgrantham:bradgrantham/linux.git
+	url = https://github.com/bradgrantham/linux.git
 [submodule "u-boot"]
 	path = u-boot
-	url = git@github.com-bradgrantham:bradgrantham/u-boot.git
+	url = https://github.com/bradgrantham/u-boot.git
 [submodule "smolutils"]
 	path = smolutils
 	url = https://github.com/LinuxMD/smolutils.git

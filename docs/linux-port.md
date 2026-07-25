@@ -153,7 +153,7 @@ independent of the delivery model.
 | M6 | timer clockevent | done |
 | M7 | CF block + erofs root mount | done |
 | M8 | userspace init + shell | done (busybox/hush on uClibc-ng bFLT) |
-| M9 | fbdev console | done (fbcon boots to shell with DMA live; see DMA-stall note) |
+| M9 | fbdev console | done (fbcon boots to shell with DMA live; see DMA-stall note and [the boot screenshot](m9-fbcon-boot.png)) |
 | — | u-boot fbcon + PS/2 (standalone boot) | deferred, tracked |
 
 ## Tracked follow-ups (post-M9)
