@@ -193,6 +193,15 @@ reference, not a shared library).
   repeated-BAT recovery for a never-configured keyboard. `BOOTDELAY=2`
   (the default) gives an autoboot-abort window; `stdin=serial,kbd`,
   `stdout/stderr=serial,vidconsole` via `CONSOLE_MUX`.
+- **Display continuity (vgacon-style):** no stage clears its predecessor's
+  screen.  u-boot's board hook migrates the ROM's heap-allocated framebuffer
+  (found by its in-band header signature; SOURCE_PAGE has no readback) into
+  the fixed carveout and repoints the ENGINE without ever stopping it; with
+  `NO_FB_CLEAR` the vidconsole then appends below the ROM monitor session
+  (cursor found by scanning for the last lit row).  The kernel's early fb
+  console inherits the same way.  Old content scrolls off naturally.  The
+  one remaining visual reset is fbcon's takeover (clear + full printk-log
+  replay via tty0) -- the same reset every Linux system has at fbcon init.
 - **Kernel early framebuffer console:** a CON_BOOT console in
   `griffin_video.c` (registered from a `console_initcall`, micro-textport
   rendering with the built-in VGA8x16 font) puts the kernel log on the
