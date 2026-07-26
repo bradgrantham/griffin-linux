@@ -12,7 +12,7 @@ u-boot — **rebuild u-boot to change**; keep `dts/griffin.dts` synced).
   The framebuffer boot console needs no parameter (self-registers, one
   visual reset at fbcon takeover + full log replay).
 - `keep_bootcon` — keep boot consoles past real-console registration (debug).
-- `root=/dev/cf2 rootfstype=erofs ro` — root fs (`cf1` = FAT boot partition).
+- `root=/dev/cf2 rootfstype=ext2 rw` — writable ext2 root (`cf1` = FAT boot partition).
 - `initcall_debug ignore_loglevel` — boot tracing / benchmarking.
 
 ## u-boot (prompt: any key in the 2 s autoboot window; PS/2 works, serial-in is flaky — M3 note)
@@ -28,14 +28,20 @@ Env resets every boot (`ENV_IS_NOWHERE`); defaults in `include/configs/griffin.h
 - Screen persists: ROM → u-boot → kernel early console append (no clears);
   fbcon takeover is the one reset (then replays the whole kernel log).
 
-## Shells (buildrootfs.sh inittab)
-- `ttyS0::askfirst:-/bin/sh` (serial) + `tty1::askfirst:-/bin/sh` (display+PS/2).
-  Edit inittab in `buildrootfs.sh` to change; rebuild rootfs + cf image.
+## Shells / accounts (buildrootfs.sh inittab + skeleton)
+- `ttyS0::askfirst:-/bin/sh` (serial) + `tty1::askfirst:-/bin/sh`
+  (display+PS/2); login shells source `/etc/profile` (PATH, PS1, motd).
+- `login`/`getty`/`passwd`/`su` are built and work from a shell; init-spawned
+  getty/login stall ~60 s before prompting (tracked — see handoff notes),
+  hence askfirst.
+- Entropy: rcS runs `seedrng` against the persisted `/var/lib/seedrng` seed —
+  without it anything calling getrandom() blocks ~2.5 min for crng init.
 
 ## Images
-- `./buildlinux.sh` → vmlinux; `./builduboot.sh`; `ROOTFS_IMAGE=rootfs.erofs
-  OUT=cf.img ./buildcfimage.sh` → bootable CF (p1 FAT16: U-BOOT.BIN+vmlinux;
-  p2 erofs root).
+- `./buildlinux.sh` → vmlinux; `./builduboot.sh`; `./buildrootfs.sh` →
+  rootfs.ext2 (writable, fakeroot+mke2fs -d; ROOTFS_FLAVOR=smolutils for the
+  erofs fallback); `ROOTFS_IMAGE=rootfs.ext2 OUT=cf.img ./buildcfimage.sh` →
+  bootable CF (p1 FAT16: U-BOOT.BIN+vmlinux; p2 root).
 
 ## Emulator
 - Interactive: `emulator --cf cf.img rom.bin` — SDL window = display+PS/2

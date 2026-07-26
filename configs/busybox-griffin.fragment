@@ -1,12 +1,16 @@
 # Griffin busybox config fragment (applied over allnoconfig via KCONFIG_ALLCONFIG).
 #
-# Minimal interactive userspace for the 8 MB nommu machine: ash + init + a
-# small coreutils set, statically linked against musl, emitted as bFLT via
-# the elf2flt-wrapped linker (-Wl,-elf2flt; stack size set with FLTFLAGS at
-# link time, see buildrootfs.sh).  Every applet exec on nommu loads the whole
-# binary fresh into RAM (no demand paging / text sharing), so the applet list
-# is kept deliberately small to keep the binary -- and therefore every
-# concurrent process image -- small.  Add applets as need arises.
+# UNIX-feel userspace for the 8 MB nommu machine: hush + init + getty/login
+# + editors/pagers + the classic tool set, statically linked against
+# uClibc-ng, emitted as bFLT via the elf2flt-wrapped linker (-Wl,-elf2flt;
+# stack size set with FLTFLAGS at link time, see buildrootfs.sh).
+#
+# nommu sizing note: every applet exec loads the whole binary fresh into RAM
+# (no demand paging / text sharing with -r flat), so the binary size is paid
+# per concurrent process; NOFORK keeps the tiny utilities in-process.  If
+# the budget ever pinches, the escape hatch is the classic uClinux
+# romfs-in-RAM + XIP layout (one shared text copy) -- tracked, not needed.
+# Networking applets wait for the PPP milestone.
 
 CONFIG_NOMMU=y
 CONFIG_STATIC=y
@@ -38,12 +42,160 @@ CONFIG_HUSH_UNSET=y
 CONFIG_HUSH_TRAP=y
 CONFIG_HUSH_ECHO=y
 CONFIG_HUSH_TEST=y
+CONFIG_HUSH_FUNCTIONS=y
+CONFIG_HUSH_LOCAL=y
 CONFIG_FEATURE_EDITING=y
 CONFIG_FEATURE_EDITING_MAX_LEN=256
+CONFIG_FEATURE_EDITING_HISTORY=63
+CONFIG_FEATURE_EDITING_SAVEHISTORY=y
+CONFIG_FEATURE_EDITING_FANCY_PROMPT=y
 CONFIG_FEATURE_TAB_COMPLETION=y
 
 CONFIG_INIT=y
 CONFIG_FEATURE_USE_INITTAB=y
+
+# Login: real getty/login on both consoles (/etc/passwd; no shadow).  BB's
+# own pwd/grp/crypt parsers keep the static uClibc link self-contained.
+CONFIG_GETTY=y
+CONFIG_LOGIN=y
+CONFIG_PASSWD=y
+CONFIG_SU=y
+CONFIG_USE_BB_PWD_GRP=y
+CONFIG_USE_BB_CRYPT=y
+CONFIG_ID=y
+CONFIG_WHOAMI=y
+
+# vi with a real undo queue (256 steps), plus less.  TERM=linux on both the
+# fbcon (80x30) and serial consoles.
+CONFIG_VI=y
+CONFIG_FEATURE_VI_MAX_LEN=4096
+CONFIG_FEATURE_VI_8BIT=y
+CONFIG_FEATURE_VI_COLON=y
+CONFIG_FEATURE_VI_COLON_EXPAND=y
+CONFIG_FEATURE_VI_YANKMARK=y
+CONFIG_FEATURE_VI_SEARCH=y
+CONFIG_FEATURE_VI_USE_SIGNALS=y
+CONFIG_FEATURE_VI_DOT_CMD=y
+CONFIG_FEATURE_VI_READONLY=y
+CONFIG_FEATURE_VI_SETOPTS=y
+CONFIG_FEATURE_VI_SET=y
+CONFIG_FEATURE_VI_WIN_RESIZE=y
+CONFIG_FEATURE_VI_ASK_TERMINAL=y
+CONFIG_FEATURE_VI_UNDO=y
+CONFIG_FEATURE_VI_UNDO_QUEUE=y
+CONFIG_FEATURE_VI_UNDO_QUEUE_MAX=256
+CONFIG_LESS=y
+CONFIG_FEATURE_LESS_MAXLINES=9999999
+CONFIG_FEATURE_LESS_BRACKETS=y
+CONFIG_FEATURE_LESS_FLAGS=y
+CONFIG_FEATURE_LESS_REGEXP=y
+CONFIG_FEATURE_LESS_WINCH=y
+CONFIG_FEATURE_LESS_ASK_TERMINAL=y
+CONFIG_MORE=y
+
+# Text tools.
+CONFIG_SED=y
+CONFIG_AWK=y
+CONFIG_FEATURE_AWK_LIBM=y
+CONFIG_FEATURE_AWK_GNU_EXTENSIONS=y
+CONFIG_EGREP=y
+CONFIG_FGREP=y
+CONFIG_DIFF=y
+CONFIG_FEATURE_DIFF_DIR=y
+CONFIG_PATCH=y
+CONFIG_CMP=y
+CONFIG_COMM=y
+CONFIG_SORT=y
+CONFIG_UNIQ=y
+CONFIG_CUT=y
+CONFIG_TR=y
+CONFIG_TEE=y
+CONFIG_OD=y
+CONFIG_STRINGS=y
+CONFIG_XXD=y
+CONFIG_PRINTF=y
+CONFIG_SEQ=y
+CONFIG_EXPR=y
+
+# File tools.
+CONFIG_FIND=y
+CONFIG_FEATURE_FIND_PRINT0=y
+CONFIG_FEATURE_FIND_MTIME=y
+CONFIG_FEATURE_FIND_PERM=y
+CONFIG_FEATURE_FIND_TYPE=y
+CONFIG_FEATURE_FIND_XDEV=y
+CONFIG_FEATURE_FIND_MAXDEPTH=y
+CONFIG_FEATURE_FIND_NEWER=y
+CONFIG_FEATURE_FIND_EXEC=y
+CONFIG_FEATURE_FIND_EXEC_PLUS=y
+CONFIG_FEATURE_FIND_NOT=y
+CONFIG_FEATURE_FIND_DEPTH=y
+CONFIG_FEATURE_FIND_PAREN=y
+CONFIG_FEATURE_FIND_SIZE=y
+CONFIG_FEATURE_FIND_PRUNE=y
+CONFIG_FEATURE_FIND_PATH=y
+CONFIG_XARGS=y
+CONFIG_FEATURE_XARGS_SUPPORT_ZERO_TERM=y
+CONFIG_DU=y
+CONFIG_DD=y
+CONFIG_FEATURE_DD_SIGNAL_HANDLING=y
+CONFIG_STAT=y
+CONFIG_FEATURE_STAT_FORMAT=y
+CONFIG_TAR=y
+CONFIG_FEATURE_TAR_CREATE=y
+CONFIG_FEATURE_TAR_AUTODETECT=y
+CONFIG_FEATURE_TAR_GNU_EXTENSIONS=y
+CONFIG_FEATURE_TAR_LONG_OPTIONS=y
+CONFIG_GZIP=y
+CONFIG_GUNZIP=y
+CONFIG_ZCAT=y
+CONFIG_CPIO=y
+CONFIG_WHICH=y
+CONFIG_READLINK=y
+CONFIG_FEATURE_READLINK_FOLLOW=y
+CONFIG_REALPATH=y
+CONFIG_BASENAME=y
+CONFIG_DIRNAME=y
+CONFIG_MKTEMP=y
+CONFIG_INSTALL=y
+CONFIG_CHMOD=y
+CONFIG_CHOWN=y
+CONFIG_CHGRP=y
+CONFIG_MD5SUM=y
+CONFIG_SHA256SUM=y
+
+# System / process tools.
+CONFIG_TOP=y
+CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE=y
+CONFIG_FEATURE_TOP_INTERACTIVE=y
+CONFIG_KILL=y
+CONFIG_KILLALL=y
+CONFIG_PIDOF=y
+CONFIG_UPTIME=y
+CONFIG_TIME=y
+CONFIG_WATCH=y
+CONFIG_STTY=y
+CONFIG_CLEAR=y
+CONFIG_RESET=y
+CONFIG_HOSTNAME=y
+CONFIG_ENV=y
+CONFIG_YES=y
+CONFIG_NICE=y
+CONFIG_RENICE=y
+CONFIG_CAL=y
+CONFIG_FEATURE_MOUNT_FLAGS=y
+
+# Entropy: getty/login block in getrandom() until the crng initializes,
+# which takes ~2.5 minutes of interrupt jitter on this machine.  seedrng
+# (run from rcS) credits a persisted seed via RNDADDENTROPY so the crng is
+# ready immediately; the image ships a pre-baked seed.credit so even the
+# first boot is instant.
+CONFIG_SEEDRNG=y
+
+# Logging (syslogd/klogd/logread/logger) waits for the PPP milestone: they
+# need AF_UNIX sockets and this kernel has no CONFIG_NET yet -- and klogd
+# can't daemonize cleanly on nommu, wedging rcS.  dmesg covers the kernel
+# log until then.
 
 CONFIG_CAT=y
 CONFIG_CP=y
@@ -54,6 +206,7 @@ CONFIG_ECHO=y
 CONFIG_FREE=y
 CONFIG_GREP=y
 CONFIG_HEAD=y
+CONFIG_FEATURE_FANCY_HEAD=y
 CONFIG_HEXDUMP=y
 CONFIG_LN=y
 CONFIG_LS=y

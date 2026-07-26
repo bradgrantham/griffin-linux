@@ -499,6 +499,31 @@ analog. fbcon now boots to a shell with DMA live the whole time.
   Mid-session `raw AA` (the repeated-BAT case Brad has seen on real
   hardware) recovers via atkbd reconnect; typing continues.
 
+## Issue #3 / UNIX-feel round — findings
+
+- **ext2 rw root works end to end**: mke2fs -t ext2 -d under fakeroot
+  (root-owned files without host privileges), root=/dev/cf2 rw, writes
+  persist across power cycles through the emulator's CF backing file.
+- **getty/login blocked ~150 s on getrandom()**: the crng needs ~2.5 min of
+  IRQ jitter to self-initialize on this machine (same on real hardware).
+  Fix: busybox `seedrng` in rcS credits a persisted seed via RNDADDENTROPY;
+  the image ships a pre-baked /var/lib/seedrng/seed.credit so even the
+  first boot has an instant crng ("crng init done" now prints before init).
+- **UNRESOLVED, tracked: init-spawned getty AND login stall ~60 s more
+  before their first prompt** — but only when init opened a tty for the
+  child (inittab entries with a tty field).  A/B: `exec getty` from rcS
+  (init child, session leader, but NO ctty) prompts instantly; the same
+  getty from a tty-field inittab entry (leader WITH ctty -> the
+  TIOCNOTTY/ctty-steal path) stalls; a `sh -c getty` wrapper doesn't help.
+  Suspect kernel-side ctty/vhangup interaction.  Shipped config sidesteps
+  it: askfirst shells (instant, respawn-equivalent on nommu) with
+  login/getty/passwd/su built for use from a running shell.
+- **syslogd/klogd need AF_UNIX** (no CONFIG_NET yet) and klogd's nommu
+  daemonize wedges rcS — deferred to the PPP milestone.
+- **nommu scripted-input race** (test harness, not a product bug): PS/2
+  keystrokes injected before hush starts reading are dropped, not buffered;
+  test scripts must type after the prompt is up.
+
 ## Base configs to crib from
 
 - `arch/m68k/configs/megadrive_defconfig` — closest working M68KDT nommu config.

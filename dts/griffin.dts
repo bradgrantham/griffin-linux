@@ -31,7 +31,7 @@
 		/* earlycon = DUART via stdout-path; the framebuffer boot
 		 * console self-registers from a console_initcall (earlycon
 		 * supports only one early console). */
-		bootargs = "earlycon console=tty0 console=ttyS0 root=/dev/cf2 rootfstype=erofs ro";
+		bootargs = "earlycon console=tty0 console=ttyS0 root=/dev/cf2 rootfstype=ext2 rw";
 		stdout-path = &duart;
 	};
 
