@@ -1,0 +1,45 @@
+# Griffin busybox-net config fragment: the SECOND busybox binary, holding
+# networking + logging applets.  Split from the main binary to keep each
+# static bFLT image under 512 KB: nommu exec needs the whole image in one
+# contiguous allocation, and >512 KB means order-8 (1 MB) blocks that this
+# 8 MB machine effectively never has.  Installed as /bin/busybox-net with
+# its own applet symlinks; PATH makes the split invisible.
+
+CONFIG_NOMMU=y
+CONFIG_STATIC=y
+CONFIG_BUSYBOX=y
+CONFIG_SHOW_USAGE=y
+CONFIG_LFS=y
+CONFIG_FEATURE_PREFER_APPLETS=y
+
+# Networking (the PPP milestone: kernel has NET/INET/PPP; pppd is a
+# separate hand-built binary, see buildrootfs.sh).
+CONFIG_PING=y
+CONFIG_FEATURE_FANCY_PING=y
+CONFIG_IFCONFIG=y
+CONFIG_FEATURE_IFCONFIG_STATUS=y
+CONFIG_ROUTE=y
+CONFIG_NETSTAT=y
+CONFIG_NSLOOKUP=y
+CONFIG_NC=y
+CONFIG_NC_SERVER=y
+CONFIG_NC_EXTRA=y
+CONFIG_TELNET=y
+CONFIG_FEATURE_TELNET_TTYPE=y
+CONFIG_TELNETD=y
+CONFIG_FEATURE_TELNETD_STANDALONE=y
+CONFIG_WGET=y
+CONFIG_FEATURE_WGET_STATUSBAR=y
+CONFIG_HTTPD=y
+CONFIG_NTPD=y
+CONFIG_UDHCPC=y
+
+# Logging: AF_UNIX now exists; syslogd/klogd run FOREGROUND (-n) from
+# inittab respawn entries -- no daemonize, so no nommu re-exec hazards
+# (background daemonize is what wedged rcS in the pre-net era).
+CONFIG_SYSLOGD=y
+CONFIG_FEATURE_IPC_SYSLOG=y
+CONFIG_KLOGD=y
+CONFIG_FEATURE_KLOGD_KLOGCTL=y
+CONFIG_LOGREAD=y
+CONFIG_LOGGER=y

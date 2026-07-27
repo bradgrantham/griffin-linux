@@ -192,10 +192,11 @@ CONFIG_FEATURE_MOUNT_FLAGS=y
 # first boot is instant.
 CONFIG_SEEDRNG=y
 
-# Logging (syslogd/klogd/logread/logger) waits for the PPP milestone: they
-# need AF_UNIX sockets and this kernel has no CONFIG_NET yet -- and klogd
-# can't daemonize cleanly on nommu, wedging rcS.  dmesg covers the kernel
-# log until then.
+# Networking + logging applets live in a SECOND binary (busybox-net, see
+# configs/busybox-net-griffin.fragment): with them included here the single
+# static image crossed 512 KB, pushing every nommu exec from an order-7 to
+# an (unsatisfiable) order-8 contiguous allocation.  Two binaries keep each
+# under the 512 KB line; PATH symlinks make the split invisible.
 
 CONFIG_CAT=y
 CONFIG_CP=y

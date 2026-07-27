@@ -228,6 +228,24 @@ reference, not a shared library).
 
 ## Tracked follow-ups (post-M9)
 
+- **ROM-resident root filesystem (PCB rev 2).** Store the rootfs in physical
+  ROM/flash on the rev 2 board; paired with XIP, binaries execute in place —
+  eliminating both the per-exec image copy and the CF cold-load. Interim
+  step on rev 1: XIP romfs-in-RAM (classic uClinux layout,
+  drivers/mtd/maps/uclinux.c is in-tree).
+- **Generalize ENGINE into a DMA engine.** memmove/memset/fb-scroll
+  acceleration in the CPLD — directly attacks the ~30% memcpy/memset share
+  of exec cost and fbcon scrolling. ATF1508 fit to be verified before any
+  software work (per project rules).
+- **`__div64_32` tuning.** ~11% of exec-window profile samples are 64-bit
+  software division, mostly the scheduler's PELT load math (m68k hardware
+  divide is 32/16 only). Candidates: hand-tuned m68k asm div64, or reducing
+  PELT update frequency. Needs investigation.
+- **Exec latency umbrella** (profiler data in boot-handoff-notes.md): XIP
+  (the big one); drop CONFIG_BINFMT_ELF_FDPIC (probed and rejected on every
+  exec, ~3%); revisit hush FEATURE_SH_STANDALONE's full-binary re-exec for
+  non-NOFORK applets.
+
 - **PPP over DUART channel B.** The XR68C681's channel B is currently unused
   (only channel A = console/timer is driven). Goal: run pppd over /dev/ttyS1
   for IP networking. Needs: extend griffin_duart.c to register channel B as a
